@@ -22,9 +22,16 @@ queue_t queue_init(int capacity) {
         return NULL;
     }
 
+    q->b_buffer = (void **)malloc(sizeof(void *) * capacity);
+    if (!q->b_buffer) {
+        free(q);
+        return NULL;
+    }
+
     q->capacity = capacity;
     q->size = 0;
     q->head = 0;
+    q->tail = 0;
     q->shutdown = false;
 
     // do locking stuff here later its too late for this rn
@@ -39,6 +46,7 @@ void queue_destroy(queue_t q) {
 
     // TODO LOCK
 
+    free(q->b_buffer);
     free(q);
 
     // TODO UNLOCK (or not cuz the lock is in q)
