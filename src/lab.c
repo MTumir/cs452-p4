@@ -9,7 +9,9 @@ struct queue {
     size_t tail;        // tail of queue (for enqueueing)
     bool shutdown;      // true if queue is shutdown
     
-    pthread_mutex_t mutex;   // used when critical code is executed
+    pthread_mutex_t mutex;      // used when critical code is executed
+    pthread_cond_t not_full;    // signals that queue is not full
+    pthread_cond_t not_empty;   // signals that queue is not empty
 };
 
 queue_t queue_init(int capacity) {
@@ -34,7 +36,10 @@ queue_t queue_init(int capacity) {
     q->tail = 0;
     q->shutdown = false;
 
+    // initialize mutex and condition variables
     pthread_mutex_init(&q->mutex, NULL);
+    pthread_cond_init(&q->not_full, NULL);
+    pthread_cond_init(&q->not_empty, NULL);
 
     return q;
 }
@@ -45,6 +50,9 @@ void queue_destroy(queue_t q) {
     }
 
     queue_shutdown(q);
+    pthread_cond_destroy(&q->not_empty);
+    pthread_cond_destroy(&q->not_full);
+    pthread_mutex_destroy(&q->mutex);
     free(q->b_buffer);
     free(q);
 }
@@ -56,14 +64,17 @@ void enqueue(queue_t q, void *data) {
 
     pthread_mutex_lock(&q->mutex);
 
+    // if full, wait for q to not be full
     if (q->size >= q->capacity) {
-        pthread_mutex_unlock(&q->mutex);
-        return;
+        pthread_cond_wait(&q->not_full, &q->mutex);
     }
 
     q->b_buffer[q->tail] = data;
     q->tail = q->tail + sizeof(data);
     q->size++;
+
+    // signal that q is not empty
+    pthread_cond_signal(&q->not_empty);
 
     pthread_mutex_unlock(&q->mutex);
 }
@@ -75,14 +86,17 @@ void *dequeue(queue_t q) {
 
     pthread_mutex_lock(&q->mutex);
 
+    // if empty, wait for q to not be empty
     if (q->size <= 0) {
-        pthread_mutex_unlock(&q->mutex);
-        return NULL;
+        pthread_cond_wait(&q->not_empty, &q->mutex);
     }
 
     void *ret = q->b_buffer[q->head];
     q->head = q->head + sizeof(ret);
     q->size--;
+
+    // signal that q is not full
+    pthread_cond_signal(&q->not_full);
 
     pthread_mutex_unlock(&q->mutex);
 
