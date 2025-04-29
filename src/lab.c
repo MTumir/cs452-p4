@@ -65,7 +65,7 @@ void enqueue(queue_t q, void *data) {
     pthread_mutex_lock(&q->mutex);
 
     // if full, wait for q to not be full
-    if (q->size >= q->capacity) {
+    while (q->size >= q->capacity) {
         pthread_cond_wait(&q->not_full, &q->mutex);
     }
 
@@ -87,7 +87,7 @@ void *dequeue(queue_t q) {
     pthread_mutex_lock(&q->mutex);
 
     // if empty, wait for q to not be empty
-    if (q->size <= 0) {
+    while (q->size <= 0) {
         pthread_cond_wait(&q->not_empty, &q->mutex);
     }
 
