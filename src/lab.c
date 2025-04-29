@@ -65,7 +65,7 @@ void enqueue(queue_t q, void *data) {
     }
 
     q->b_buffer[q->tail] = data;
-    q->tail = q->tail + (size_t)data;
+    q->tail = q->tail + sizeof(data);
     q->size++;
 
     // TODO UNLOCK
@@ -85,7 +85,7 @@ void *dequeue(queue_t q) {
     }
 
     void *ret = q->b_buffer[q->head];
-    q->head = q->head + (size_t)ret;
+    q->head = q->head + sizeof(ret);
     q->size--;
 
     // TODO UNLOCK
@@ -109,7 +109,7 @@ bool is_empty(queue_t q) {
     }
 
     // TODO LOCK
-    bool ret = q->capacity == 0;
+    bool ret = q->size == 0;
     // TODO UNLOCK
 
     return ret;
