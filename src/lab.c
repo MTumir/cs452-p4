@@ -9,7 +9,7 @@ struct queue {
     size_t tail;        // tail of queue (for enqueueing)
     bool shutdown;      // true if queue is shutdown
     
-    pthread_mutex_t lock;   // used when critical code is executed
+    pthread_mutex_t mutex;   // used when critical code is executed
 };
 
 queue_t queue_init(int capacity) {
@@ -34,7 +34,7 @@ queue_t queue_init(int capacity) {
     q->tail = 0;
     q->shutdown = false;
 
-    // do locking stuff here later its too late for this rn
+    pthread_mutex_init(&q->mutex, NULL);
 
     return q;
 }
@@ -44,12 +44,9 @@ void queue_destroy(queue_t q) {
         return;
     }
 
-    // TODO LOCK
-
+    queue_shutdown(q);
     free(q->b_buffer);
     free(q);
-
-    // TODO UNLOCK (or not cuz the lock is in q)
 }
 
 void enqueue(queue_t q, void *data) {
@@ -57,10 +54,10 @@ void enqueue(queue_t q, void *data) {
         return;
     }
 
-    // TODO LOCK
+    pthread_mutex_lock(&q->mutex);
 
     if (q->size >= q->capacity) {
-        // TODO UNLOCK
+        pthread_mutex_unlock(&q->mutex);
         return;
     }
 
@@ -68,8 +65,7 @@ void enqueue(queue_t q, void *data) {
     q->tail = q->tail + sizeof(data);
     q->size++;
 
-    // TODO UNLOCK
-
+    pthread_mutex_unlock(&q->mutex);
 }
 
 void *dequeue(queue_t q) {
@@ -77,10 +73,10 @@ void *dequeue(queue_t q) {
         return NULL;
     }
 
-    // TODO LOCK
+    pthread_mutex_lock(&q->mutex);
 
     if (q->size <= 0) {
-        // TODO UNLOCK
+        pthread_mutex_unlock(&q->mutex);
         return NULL;
     }
 
@@ -88,7 +84,7 @@ void *dequeue(queue_t q) {
     q->head = q->head + sizeof(ret);
     q->size--;
 
-    // TODO UNLOCK
+    pthread_mutex_unlock(&q->mutex);
 
     return ret;
 }
@@ -98,9 +94,9 @@ void queue_shutdown(queue_t q) {
         return;
     }
 
-    // TODO LOCK
+    pthread_mutex_lock(&q->mutex);
     q->shutdown = true;
-    // TODO UNLOCK
+    pthread_mutex_unlock(&q->mutex);
 }
 
 bool is_empty(queue_t q) {
@@ -108,9 +104,9 @@ bool is_empty(queue_t q) {
         return true;
     }
 
-    // TODO LOCK
+    pthread_mutex_lock(&q->mutex);
     bool ret = q->size == 0;
-    // TODO UNLOCK
+    pthread_mutex_unlock(&q->mutex);
 
     return ret;
 }
@@ -120,9 +116,9 @@ bool is_shutdown(queue_t q) {
         return true;
     }
 
-    // TODO LOCK
+    pthread_mutex_lock(&q->mutex);
     bool ret = q->shutdown;
-    // TODO UNLOCK
+    pthread_mutex_unlock(&q->mutex);
 
     return ret;
 }
