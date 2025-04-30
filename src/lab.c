@@ -65,12 +65,18 @@ void enqueue(queue_t q, void *data) {
     pthread_mutex_lock(&q->mutex);
 
     // if full, wait for q to not be full
-    while (q->size >= q->capacity) {
+    while (q->size >= q->capacity && !q->shutdown) {    // CR - Only wait if shutdown is inactive
         pthread_cond_wait(&q->not_full, &q->mutex);
     }
 
+    // CR - Disallow enqueues if shutdown is active
+    if (q->shutdown) {
+        pthread_mutex_unlock(&q->mutex);
+        return;
+    }
+
     q->b_buffer[q->tail] = data;
-    q->tail = q->tail + sizeof(data);
+    q->tail = (q->tail + 1) % q->capacity;    // CR - Allow wraparound
     q->size++;
 
     // signal that q is not empty
@@ -87,12 +93,18 @@ void *dequeue(queue_t q) {
     pthread_mutex_lock(&q->mutex);
 
     // if empty, wait for q to not be empty
-    while (q->size <= 0) {
+    while (q->size <= 0 && !q->shutdown) {  // CR - Only wait if shutdown is inactive
         pthread_cond_wait(&q->not_empty, &q->mutex);
     }
 
+    // CR - Disallow dequeues if queue is empty (and shutdown is active)
+    if (q->size <= 0) {
+        pthread_mutex_unlock(&q->mutex);
+        return NULL;
+    }
+
     void *ret = q->b_buffer[q->head];
-    q->head = q->head + sizeof(ret);
+    q->head = (q->head + 1) % q->capacity;    // CR - Allow wraparound
     q->size--;
 
     // signal that q is not full
@@ -110,6 +122,11 @@ void queue_shutdown(queue_t q) {
 
     pthread_mutex_lock(&q->mutex);
     q->shutdown = true;
+
+    // CR - Force all waiting threads to complete (lack of which causes deadlock!!!)
+    pthread_cond_broadcast(&q->not_full);
+    pthread_cond_broadcast(&q->not_empty);
+
     pthread_mutex_unlock(&q->mutex);
 }
 
